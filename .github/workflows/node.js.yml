@@ -1,0 +1,50 @@
+# This workflow will do a clean install of node dependencies and run
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
+
+name: Node.js CI
+
+on: [push]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v2
+
+      # - name: Building app in github
+      #   uses: actions/setup-node@v3
+      #   with:
+      #     node-version: 17
+      # - run: npm install
+      # - run: npm run build && cat .next/server/pages/index.html
+
+      - name: Copying files to production server
+        uses: burnett01/rsync-deployments@5.2.2
+        with:
+          switches: -avzr --delete --exclude='/.git' --filter=':- .gitignore'
+          path: /
+          remote_path: /home/admin/object-detection
+          remote_host: ${{ secrets.HOST }}
+          remote_user: ${{ secrets.USER }}
+          remote_key: ${{ secrets.KEY }}
+          remote_port: ${{ secrets.SSH_PORT }}
+
+      - name: Executing remote ssh commands to start the staging server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: false
+          command_timeout: 20m
+          script: | # npm install # npm run build # rm -rf node_modules
+            cd /home/admin/object-detection
+            npm --version
+            node --version
+            npm install 
+            npm run build
+            cp -r /home/admin/object-detection/dist/. /home/admin/object-detection-build
+
+      
